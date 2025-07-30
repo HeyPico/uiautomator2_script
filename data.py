@@ -31,7 +31,9 @@ class LoginInfo:
 @dataclass
 class TransportBookingData:
     pickup_location: Optional[str] = None  # e.g. "current_location" or address
+    is_saved_pickup: bool = False
     destination: Optional[str] = None
+    is_saved_destination: bool = False
     time: Optional[str] = "now"  # Future support
     app: Optional[str] = None  # "grab", "gojek", etc.
     is_logged_in: bool = True
@@ -163,7 +165,7 @@ class MessageData:
 def parse_to(raw_to):
     return [str(i) for i in raw_to]
 @dataclass
-class FlowState:
+class FlowStateFood:
     flow: str
     step: str
     data: FoodOrderData

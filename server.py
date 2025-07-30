@@ -27,7 +27,7 @@ from tada.cancel_ride import cancel_ride as tada_cancel_ride
 from whatsapp.send_message import send_message as whatsapp_send_message
 from whatsapp.login import login as whatsapp_login 
 import time
-from data import FlowState, TransportBookingData, parse_booking_options, parse_selected_option, BookingOption, SelectedOption, BookingResult, parse_booking_result, fetch_rides, parse_login_info, FoodOrderData, parse_food_items, parse_order_result, parse_menu_options, MenuOption, OrderResult, MessageData, parse_to, parse_to_options
+from data import FlowState, FlowStateFood, TransportBookingData, parse_booking_options, parse_selected_option, BookingOption, SelectedOption, BookingResult, parse_booking_result, fetch_rides, parse_login_info, FoodOrderData, parse_food_items, parse_order_result, parse_menu_options, MenuOption, OrderResult, MessageData, parse_to, parse_to_options
 import time
 from dataclasses import asdict
 
@@ -226,7 +226,9 @@ def transport_flow():
     print("step:", step, "raw data:", raw_data)
     data = TransportBookingData(
         pickup_location=raw_data.get("pickup_location", ""),
+        is_saved_pickup=raw_data.get("is_saved_pickup", False),
         destination=raw_data.get("destination", ""),
+        is_saved_destination=raw_data.get("is_saved_destination", False),
         time=raw_data.get("time", "now"),
         app=raw_data.get("app"),
         login_info=parse_login_info(raw_data.get("login_info")),
@@ -325,7 +327,7 @@ def transport_flow():
                             option_id=f"{opt['title'].lower().replace(' ', '')}-ryde-{i:03}"
                         )
                     )
-            grab_result = confirmation_check_handler(state.data.destination, state.data.time)
+            grab_result = confirmation_check_handler(state.data.pickup_location, state.data.is_saved_pickup, state.data.destination, state.data.is_saved_destination, state.data.time)
             if grab_result is not None:
                 if not (isinstance(grab_result, dict) and grab_result["status"] == "not_logged_in"):
                     for i, opt in enumerate(grab_result):
@@ -523,7 +525,7 @@ def food_flow():
         cancelled=raw_data.get("cancelled", False)
     )
 
-    state = FlowState(flow="food_ordering", step=step, data=data)
+    state = FlowStateFood(flow="food_ordering", step=step, data=data)
 
     if state.step == "start":
         state.step = "awaiting_missing_info"
@@ -567,20 +569,21 @@ def food_flow():
         if state.data.app is None:
             grab_res = grab_check_order_food(state.data.restaurant_name, state.data.delivery_location, orders, state.data.delivery_note)
             if grab_res is not None:
-                if not (isinstance(grab_res, dict) and grab_res["status"] == "not_logged_in"):
+                if not (isinstance(grab_res, dict) and grab_res.get("status") == "not_logged_in"):
                     options.append(grab_res)
 
             foodpanda_res = foodpanda_check_price(state.data.restaurant_name, state.data.delivery_location, orders, state.data.delivery_note)
             if foodpanda_res is not None:
-                print("cek logic", not (isinstance(foodpanda_res, dict) and foodpanda_res["status"] == "not_logged_in"))
-                if not (isinstance(foodpanda_res, dict) and foodpanda_res["status"] == "not_logged_in"):
+                print("cek logic", not (isinstance(foodpanda_res, dict) and foodpanda_res.get("status") == "not_logged_in"))
+                if not (isinstance(foodpanda_res, dict) and foodpanda_res.get("status") == "not_logged_in"):
                     print("response:", foodpanda_res)
                     options.append(foodpanda_res)
 
             deliveroo_res = deliveroo_check_price(state.data.restaurant_name, state.data.delivery_location, orders)
             if deliveroo_res is not None:
-                if not (isinstance(deliveroo_res, dict) and deliveroo_res["status"] == "not_logged_in"):
+                if not (isinstance(deliveroo_res, dict) and deliveroo_res.get("status") == "not_logged_in"):
                     options.append(deliveroo_res)
+
             # options = [
             #     {
             #         "app": "grab",
@@ -617,13 +620,14 @@ def food_flow():
             state.step = "ordering_in_progress"
 
     elif state.step == "ordering_in_progress":
-        # res = place_order(state.data.app, state.data.selected_option.title)
-        # if res["status"] == "no_payment_default":
-        #     state.data.is_payment_default_exist = False
-        #     state.step = "confirmation_check_pending"
-        #     return jsonify(asdict(state))
-        res = {"status": "success", "estimated_delivery_time": 20}
-        state.data.order_result = OrderResult(status=res["status"], estimated_delivery_time=res["estimated_delivery_time"])
+        if state.data.app.lower() == "grab":
+            res = grab_checkout(state.data.delivery_note)
+            if res["status"] == "no_payment_default":
+                state.data.is_payment_default_exist = False
+                state.step = "confirmation_check_pending"
+                return jsonify(asdict(state))
+            # res = {"status": "success", "estimated_delivery_time": 20}
+            state.data.order_result = OrderResult(status=res["status"], estimated_delivery_time=res["estimated_delivery_time"])
         state.step = "handle_estimated_time"
 
     elif state.step == "handle_estimated_time":
@@ -704,10 +708,10 @@ def verify_hmac(request):
     return hmac.compare_digest(received_signature, expected_signature)
 
 
-@app.before_request
-def hmac_auth_middleware():
-    if not verify_hmac(request):
-            abort(401, "Invalid token")
+# @app.before_request
+# def hmac_auth_middleware():
+#     if not verify_hmac(request):
+#             abort(401, "Invalid token")
 
 # test auth endpoint
 @app.route("/indextest", methods=["POST"])
