@@ -41,7 +41,7 @@ def check_login_status(d):
                 return False
 
         # Look for home screen keywords as positive signal
-        home_keywords = ["search", "redeem", "adventure"]
+        home_keywords = ["search", "redeem", "adventure", "save", "simpan"]
         for el in d.xpath("//*").all():
                         try:
                             text = el.attrib.get("text", "").strip().lower()

@@ -1,15 +1,15 @@
 import uiautomator2 as u2
 import time
-from .utils import app_launch, check_login_status, clear_unexpected_popups, accept_permissions, screen_components, find_components, find_components_by_id, coordinate_bounds
+from utils import app_launch, check_login_status, clear_unexpected_popups, accept_permissions, screen_components, find_components, find_components_by_id, coordinate_bounds
 def check_price(destination, pickup_time):
     try:
         d = u2.connect()
         # sess = d.session("com.gojek.app") 
         d.app_start("com.gojek.app", stop=True)
-        time.sleep(2)
+        time.sleep(3)
         accept_permissions(d)
         clear_unexpected_popups(d)
-
+        time.sleep(1)
         # Call login checker
         if not check_login_status(d):
             print("User is not logged in. Please log in to continue.")
@@ -18,6 +18,23 @@ def check_price(destination, pickup_time):
 
         # Continue automation like booking ride
         print("📲 Proceeding to book ride...")
+        while not d(text="Search for a destination").exists():
+            time.sleep(0.2)
+            if d(text="Cari lokasi tujuan").exists(): # add other languages
+                # change to english flow
+                d(resourceId="com.gojek.app:id/2131364856").click()
+                time.sleep(0.2)
+                d.swipe(0.5, 0.6, 0.5, 0.5, duration=0.05)
+                time.sleep(0.15)
+                time.sleep(0.2)
+                if d(text="Pilihan bahasa").exists():
+                    d(text="Pilihan bahasa").click()
+                else:
+                    d(textContains="language").click()
+                time.sleep(0.2)
+                d(textContains="English").click()
+                d(resourceId="android:id/button1").click()
+                time.sleep(0.2)
         d(text="Search for a destination").click()
         while not d(resourceId="com.gojek.app:id/2131367370").exists():
             time.sleep(0.1)
@@ -75,3 +92,16 @@ def check_price(destination, pickup_time):
         # notify_n8n("1333039921", e)
         print(f"[Error] Failed to book ride: {e}")
         return
+    
+if __name__ == "__main__":
+    check_price("plaza singapura", "now")
+    # d = u2.connect()
+    # # sess = d.session("com.gojek.app") 
+    # d.app_start("com.gojek.app", stop=False)
+    # if d(text="Pilihan bahasa").exists():
+    #     d(text="Pilihan bahasa").click()
+    # else:
+    #     d(text="Language").click()
+    # time.sleep(0.2)
+    # d(textContains="English").click()
+    # d(resourceId="android:id/button1").click()
